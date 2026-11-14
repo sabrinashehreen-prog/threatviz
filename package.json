@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test:api": "NODE_ENV=test tsx --test tests/threat-predictions.contract.test.ts",
+    "test:api": "NODE_ENV=test tsx --test tests/*.test.ts",
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,md}\""
   },
   "dependencies": {

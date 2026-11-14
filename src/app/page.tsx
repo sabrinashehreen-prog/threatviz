@@ -24,6 +24,7 @@ import {
   SlidersHorizontal,
   Wifi,
 } from "lucide-react";
+import type { KevEntry } from "@/lib/cisa-kev";
 
 type Threat = {
   id: string;
@@ -41,6 +42,7 @@ type Threat = {
 };
 
 type PredictionSource = "api" | "sample";
+type KevApiResponse = { count: number; vulnerabilities: KevEntry[] };
 
 const nodes = [
   { id: "edge", label: "EDGE GATEWAY", sub: "edge-01 · 10.0.0.1", x: 48, y: 48, icon: "gateway" },
@@ -74,6 +76,10 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState("");
   const [predictionSource, setPredictionSource] = useState<PredictionSource>("sample");
+  const [kevEntries, setKevEntries] = useState<KevEntry[]>([]);
+  const [kevCount, setKevCount] = useState(0);
+  const [kevLoading, setKevLoading] = useState(true);
+  const [kevError, setKevError] = useState("");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -94,6 +100,27 @@ export default function Home() {
         setApiError(error instanceof Error ? error.message : "Could not load predictions.");
       })
       .finally(() => setLoading(false));
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/vulnerabilities", { signal: controller.signal, cache: "no-store" })
+      .then(async (response) => {
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error ?? "Could not load CISA catalog.");
+        return payload as KevApiResponse;
+      })
+      .then(({ count, vulnerabilities }) => {
+        setKevCount(count);
+        setKevEntries(vulnerabilities);
+        setKevError("");
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setKevError(error instanceof Error ? error.message : "Could not load CISA catalog.");
+      })
+      .finally(() => setKevLoading(false));
     return () => controller.abort();
   }, []);
 
@@ -300,6 +327,70 @@ export default function Home() {
           </section>
 
           <aside className="flex flex-col gap-5">
+            <section className="overflow-hidden rounded-xl border border-white/[0.08] bg-[#0d1219]">
+              <div className="flex items-center justify-between border-b border-white/[0.07] px-4 py-4">
+                <div>
+                  <h2 className="text-sm font-semibold">CISA KEV</h2>
+                  <p className="mt-1 text-[10px] text-slate-500">
+                    Known exploited vulnerabilities
+                  </p>
+                </div>
+                <a
+                  href="https://www.cisa.gov/known-exploited-vulnerabilities-catalog"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[10px] text-cyan-300 hover:text-cyan-200"
+                >
+                  Source ↗
+                </a>
+              </div>
+              <div className="divide-y divide-white/[0.06]">
+                {kevLoading ? (
+                  <p className="px-4 py-6 text-center text-xs text-slate-500">
+                    Loading CISA catalog…
+                  </p>
+                ) : kevError ? (
+                  <p className="px-4 py-6 text-center text-xs text-rose-300">
+                    {kevError}
+                  </p>
+                ) : (
+                  kevEntries.map((entry) => (
+                    <article key={entry.cveID} className="px-4 py-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <a
+                          href={`https://www.cve.org/CVERecord?id=${entry.cveID}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="font-mono text-[10px] text-cyan-300 hover:text-cyan-200"
+                        >
+                          {entry.cveID}
+                        </a>
+                        <span className="text-[9px] text-slate-500">
+                          Added {entry.dateAdded}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-[11px] font-medium text-slate-200">
+                        {entry.vulnerabilityName}
+                      </p>
+                      <p className="mt-1 text-[10px] text-slate-500">
+                        {entry.vendorProject} · {entry.product}
+                      </p>
+                      <p className="mt-2 max-h-10 overflow-hidden text-[10px] leading-relaxed text-slate-500">
+                        {entry.shortDescription}
+                      </p>
+                    </article>
+                  ))
+                )}
+              </div>
+              <p className="border-t border-white/[0.07] px-4 py-3 text-[10px] leading-relaxed text-slate-500">
+                {kevLoading
+                  ? "CISA feed"
+                  : kevError
+                    ? "CISA feed unavailable"
+                    : `${kevEntries.length} newest of ${kevCount.toLocaleString()} catalog entries`}
+                . Catalog entries are not activity observed on your network.
+              </p>
+            </section>
             <section className="overflow-hidden rounded-xl border border-white/[0.08] bg-[#0d1219]">
               <div className="flex items-center justify-between border-b border-white/[0.07] px-4 py-4"><div><h2 className="text-sm font-semibold">Threat activity</h2><p className="mt-1 text-[10px] text-slate-500">Predictions in this playback window</p></div><span className="rounded-md bg-rose-400/10 px-2 py-1 text-[10px] font-medium text-rose-300">{threats.length} total</span></div>
               <div className="divide-y divide-white/[0.06]">{loading ? <p className="px-4 py-6 text-center text-xs text-slate-500">Loading predictions…</p> : apiError ? <p className="px-4 py-6 text-center text-xs text-rose-300">{apiError}</p> : threats.map((threat, index) => <button key={threat.id} onClick={() => { setSelectedThreat(index); setProgress(windowEnd === windowStart ? 100 : ((Date.parse(threat.timestamp) - windowStart) / (windowEnd - windowStart)) * 100); setPlaying(false); }} className={`w-full px-4 py-3.5 text-left transition-colors ${selectedThreat === index ? "bg-white/[0.035]" : "hover:bg-white/[0.025]"}`}><div className="flex items-start justify-between gap-2"><div className="flex items-start gap-2.5"><span className="mt-1.5 h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: threat.color, boxShadow: `0 0 10px ${threat.color}66` }} /><div><p className="text-xs font-medium text-slate-200">{threat.type}</p><p className="mt-1 text-[10px] text-slate-500">{threat.source}</p><p className="mt-0.5 text-[10px] text-slate-500">Target: {threat.target}</p></div></div><span className="whitespace-nowrap font-mono text-[9px] text-slate-500">{new Date(threat.timestamp).toLocaleTimeString("en-US", { timeZone: "UTC", hour12: false })}</span></div><div className="ml-[18px] mt-3 flex items-center justify-between"><span className={`rounded px-1.5 py-0.5 text-[9px] font-medium ${threat.severity === "Critical" ? "bg-rose-400/10 text-rose-300" : threat.severity === "High" ? "bg-orange-400/10 text-orange-300" : "bg-yellow-300/10 text-yellow-200"}`}>{threat.severity}</span><span className="text-[9px] text-slate-500">Confidence <span className="ml-1 font-medium text-slate-300">{threat.confidence}%</span></span></div></button>)}</div>

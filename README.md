@@ -71,6 +71,10 @@ Configure your hosting platform's health-check probe to request `GET /api/health
 
 Configure a separate readiness probe to request `GET /api/ready`. Unlike `/api/health`, readiness verifies that the prediction payload is valid: it checks the built-in sample predictions when no upstream URL is configured, or fetches and validates the configured service response. It returns HTTP `200` only when the payload is valid and HTTP `503` for invalid data, upstream errors, or timeouts. The response includes only a status, payload-validity result, and optional latency; it never exposes the API key or upstream response body. This probe makes an upstream request when live predictions are configured, so account for the service's rate limits.
 
+## CISA known exploited vulnerabilities
+
+`GET /api/vulnerabilities` reads the public [CISA Known Exploited Vulnerabilities catalog](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) and returns its five newest entries. The catalog is free and does not require an API key; the server caches it for one hour. These entries are vulnerability intelligence, not predictions or observations from your network, and are shown separately from the attack-map playback.
+
 ## Development
 
 The dashboard works with built-in sample predictions; a live prediction service is optional. To configure one locally, copy the example and add your service URL and optional key:
