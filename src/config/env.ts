@@ -6,6 +6,16 @@ const logger = new Logger("Config:Env");
 const envSchema = z.object({
   NODE_ENV: z.string(),
   NEXT_PUBLIC_APP_URL: z.string(),
+  THREAT_PREDICTIONS_API_URL: z.string().url().optional().or(z.literal("")),
+  THREAT_PREDICTIONS_API_KEY: z.string().optional(),
+}).superRefine((values, context) => {
+  if (values.THREAT_PREDICTIONS_API_KEY && !values.THREAT_PREDICTIONS_API_URL) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["THREAT_PREDICTIONS_API_KEY"],
+      message: "requires THREAT_PREDICTIONS_API_URL",
+    });
+  }
 });
 
 const validateEnv = () => {
@@ -14,6 +24,8 @@ const validateEnv = () => {
     const env = {
       NODE_ENV: process.env.NODE_ENV,
       NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+      THREAT_PREDICTIONS_API_URL: process.env.THREAT_PREDICTIONS_API_URL,
+      THREAT_PREDICTIONS_API_KEY: process.env.THREAT_PREDICTIONS_API_KEY,
     };
     const parsed = envSchema.parse(env);
     logger.info("Environment variables validated successfully");
