@@ -5,19 +5,33 @@ import {
   extractPredictions,
   isValidPredictions,
   samplePredictions,
-} from "../src/app/api/threat-predictions/route.ts";
+} from "../src/lib/threat-predictions";
 
-const invokeRoute = (workerData: Record<string, unknown>) => new Promise<{ status: number; body: unknown }>((resolve, reject) => {
-  const worker = new Worker(new URL("./threat-predictions.http-worker.ts", import.meta.url), {
-    workerData,
-    execArgv: ["--import", "tsx/esm"],
+const invokeRoute = (workerData: Record<string, unknown>) =>
+  new Promise<{ status: number; body: unknown }>((resolve, reject) => {
+    const worker = new Worker(
+      new URL("./threat-predictions.http-worker.ts", import.meta.url),
+      {
+        workerData,
+        execArgv: ["--import", "tsx/esm"],
+      }
+    );
+    worker.once(
+      "message",
+      (result: { error?: string; status: number; body: unknown }) => {
+        if (result.error) {
+          reject(new Error(result.error));
+          return;
+        }
+        resolve(result);
+      }
+    );
+    worker.once("error", reject);
+    worker.once("exit", code => {
+      if (code !== 0)
+        reject(new Error(`HTTP test worker exited with code ${code}`));
+    });
   });
-  worker.once("message", resolve);
-  worker.once("error", reject);
-  worker.once("exit", (code) => {
-    if (code !== 0) reject(new Error(`HTTP test worker exited with code ${code}`));
-  });
-});
 
 const validPrediction = {
   id: "T-2048",
@@ -39,7 +53,10 @@ describe("threat prediction API HTTP contract", () => {
     const response = await invokeRoute({});
 
     assert.equal(response.status, 200);
-    assert.deepEqual(response.body, { predictions: samplePredictions, source: "sample" });
+    assert.deepEqual(response.body, {
+      predictions: samplePredictions,
+      source: "sample",
+    });
   });
 
   it("returns 200 with API predictions for a valid upstream response", async () => {
@@ -49,7 +66,10 @@ describe("threat prediction API HTTP contract", () => {
     });
 
     assert.equal(response.status, 200);
-    assert.deepEqual(response.body, { predictions: [validPrediction], source: "api" });
+    assert.deepEqual(response.body, {
+      predictions: [validPrediction],
+      source: "api",
+    });
   });
 
   it("returns 502 when the upstream service responds unsuccessfully", async () => {
@@ -59,17 +79,23 @@ describe("threat prediction API HTTP contract", () => {
     });
 
     assert.equal(response.status, 502);
-    assert.deepEqual(response.body, { error: "Threat prediction service unavailable." });
+    assert.deepEqual(response.body, {
+      error: "Threat prediction service unavailable.",
+    });
   });
 
   it("returns 502 when the upstream payload is invalid", async () => {
     const response = await invokeRoute({
       upstreamUrl: "https://predictions.example.test",
-      upstreamPayload: { predictions: [{ ...validPrediction, confidence: 101 }] },
+      upstreamPayload: {
+        predictions: [{ ...validPrediction, confidence: 101 }],
+      },
     });
 
     assert.equal(response.status, 502);
-    assert.deepEqual(response.body, { error: "Threat prediction service returned invalid data." });
+    assert.deepEqual(response.body, {
+      error: "Threat prediction service returned invalid data.",
+    });
   });
 });
 
@@ -94,7 +120,10 @@ describe("threat prediction API payload contract", () => {
 
   it("rejects payloads without a predictions array", () => {
     assert.equal(extractPredictions({ results: [validPrediction] }), null);
-    assert.equal(isValidPredictions(extractPredictions({ results: [validPrediction] })), false);
+    assert.equal(
+      isValidPredictions(extractPredictions({ results: [validPrediction] })),
+      false
+    );
     assert.equal(isValidPredictions(null), false);
     assert.equal(isValidPredictions({ predictions: [validPrediction] }), false);
   });
@@ -106,32 +135,53 @@ describe("threat prediction API payload contract", () => {
   });
 
   it("rejects predictions with non-string text fields", () => {
-    assert.equal(isValidPredictions([{ ...validPrediction, severity: 3 }]), false);
+    assert.equal(
+      isValidPredictions([{ ...validPrediction, severity: 3 }]),
+      false
+    );
   });
 
   it("rejects predictions missing numeric fields or containing non-finite values", () => {
     const { confidence: _confidence, ...missingConfidence } = validPrediction;
 
     assert.equal(isValidPredictions([missingConfidence]), false);
-    assert.equal(isValidPredictions([{ ...validPrediction, x: Number.NaN }]), false);
+    assert.equal(
+      isValidPredictions([{ ...validPrediction, x: Number.NaN }]),
+      false
+    );
   });
 
   it("rejects confidence outside the inclusive 0–100 range", () => {
-    assert.equal(isValidPredictions([{ ...validPrediction, confidence: -1 }]), false);
-    assert.equal(isValidPredictions([{ ...validPrediction, confidence: 101 }]), false);
+    assert.equal(
+      isValidPredictions([{ ...validPrediction, confidence: -1 }]),
+      false
+    );
+    assert.equal(
+      isValidPredictions([{ ...validPrediction, confidence: 101 }]),
+      false
+    );
   });
 
   it("rejects map coordinates outside the inclusive 0–100 range", () => {
     for (const coordinate of ["x", "y", "tx", "ty"] as const) {
-      assert.equal(isValidPredictions([{ ...validPrediction, [coordinate]: -1 }]), false);
-      assert.equal(isValidPredictions([{ ...validPrediction, [coordinate]: 101 }]), false);
+      assert.equal(
+        isValidPredictions([{ ...validPrediction, [coordinate]: -1 }]),
+        false
+      );
+      assert.equal(
+        isValidPredictions([{ ...validPrediction, [coordinate]: 101 }]),
+        false
+      );
     }
   });
 
   it("rejects a payload when any prediction in the array is invalid", () => {
     assert.equal(
-      isValidPredictions([validPrediction, { ...validPrediction, confidence: 101 }]),
-      false,
+      isValidPredictions([
+        validPrediction,
+        { ...validPrediction, confidence: 101 },
+      ]),
+      false
     );
   });
 });

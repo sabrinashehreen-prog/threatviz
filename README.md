@@ -23,18 +23,18 @@ For local development, copy `.env.example` to `.env.local` and replace the place
 
 The configured upstream service must return JSON containing predictions, either as a raw array or as an object with a `predictions` array. Each prediction must include all of the following fields:
 
-| Field | Type | Requirements / meaning |
-| --- | --- | --- |
-| `id` | string | Prediction identifier. |
-| `source` | string | Suspected origin or source asset. |
-| `target` | string | Predicted destination asset. |
-| `type` | string | Threat or activity description. |
-| `severity` | string | Severity label, such as `Critical`, `High`, or `Elevated`. |
-| `timestamp` | string | Event time; use an ISO 8601 timestamp so playback can order predictions correctly. |
-| `color` | string | CSS color used to render the threat path and marker. |
-| `confidence` | number | Model confidence from `0` to `100`. |
-| `x`, `y` | number | Source marker coordinates, each from `0` to `100` on the map. |
-| `tx`, `ty` | number | Target coordinates, each from `0` to `100` on the map. |
+| Field        | Type   | Requirements / meaning                                                             |
+| ------------ | ------ | ---------------------------------------------------------------------------------- |
+| `id`         | string | Prediction identifier.                                                             |
+| `source`     | string | Suspected origin or source asset.                                                  |
+| `target`     | string | Predicted destination asset.                                                       |
+| `type`       | string | Threat or activity description.                                                    |
+| `severity`   | string | Severity label, such as `Critical`, `High`, or `Elevated`.                         |
+| `timestamp`  | string | Event time; use an ISO 8601 timestamp so playback can order predictions correctly. |
+| `color`      | string | CSS color used to render the threat path and marker.                               |
+| `confidence` | number | Model confidence from `0` to `100`.                                                |
+| `x`, `y`     | number | Source marker coordinates, each from `0` to `100` on the map.                      |
+| `tx`, `ty`   | number | Target coordinates, each from `0` to `100` on the map.                             |
 
 The API validates required field types and numeric ranges, but does not validate timestamp format, severity values, or CSS color syntax. Invalid payloads produce HTTP `502` from `/api/threat-predictions`.
 
@@ -72,6 +72,14 @@ Configure your hosting platform's health-check probe to request `GET /api/health
 Configure a separate readiness probe to request `GET /api/ready`. Unlike `/api/health`, readiness verifies that the prediction payload is valid: it checks the built-in sample predictions when no upstream URL is configured, or fetches and validates the configured service response. It returns HTTP `200` only when the payload is valid and HTTP `503` for invalid data, upstream errors, or timeouts. The response includes only a status, payload-validity result, and optional latency; it never exposes the API key or upstream response body. This probe makes an upstream request when live predictions are configured, so account for the service's rate limits.
 
 ## Development
+
+The dashboard works with built-in sample predictions; a live prediction service is optional. To configure one locally, copy the example and add your service URL and optional key:
+
+```bash
+cp .env.example .env.local
+```
+
+Leave both values blank to use sample data. Keep any real API key in `.env.local`; this file is ignored by Git.
 
 Run the development server with:
 

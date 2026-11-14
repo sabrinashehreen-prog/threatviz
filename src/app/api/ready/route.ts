@@ -4,7 +4,7 @@ import {
   extractPredictions,
   isValidPredictions,
   samplePredictions,
-} from "@/app/api/threat-predictions/route";
+} from "../../../lib/threat-predictions";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +20,7 @@ export async function GET() {
         predictionPayload: valid ? "valid-sample" : "invalid-sample",
         checkedAt,
       },
-      { status: valid ? 200 : 503 },
+      { status: valid ? 200 : 503 }
     );
   }
 
@@ -37,8 +37,12 @@ export async function GET() {
 
     if (!response.ok) {
       return NextResponse.json(
-        { status: "error", predictionPayload: "service-unavailable", checkedAt },
-        { status: 503 },
+        {
+          status: "error",
+          predictionPayload: "service-unavailable",
+          checkedAt,
+        },
+        { status: 503 }
       );
     }
 
@@ -52,12 +56,12 @@ export async function GET() {
         latencyMs: Date.now() - startedAt,
         checkedAt,
       },
-      { status: valid ? 200 : 503 },
+      { status: valid ? 200 : 503 }
     );
   } catch {
     return NextResponse.json(
       { status: "error", predictionPayload: "unreachable", checkedAt },
-      { status: 503 },
+      { status: 503 }
     );
   }
 }
